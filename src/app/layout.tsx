@@ -4,10 +4,10 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "LifeOS — Regrets of a Lifetime",
   description:
-    "An anonymous space to share life regrets. Dark, melancholic, cathartic.",
+    "An anonymous space to share life regrets. Reflect with AI, find peace in shared experience.",
   openGraph: {
     title: "LifeOS — Regrets of a Lifetime",
-    description: "An anonymous space to share life regrets.",
+    description: "An anonymous space to share life regrets. Dark, melancholic, cathartic.",
     type: "website",
     siteName: "LifeOS",
   },
