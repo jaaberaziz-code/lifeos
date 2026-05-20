@@ -1,6 +1,0 @@
-{
-  "version": 2,
-  "buildCommand": "npx next build --webpack",
-  "installCommand": "npm install --cache /tmp/npm-cache",
-  "outputDirectory": ".next"
-}
