@@ -1,50 +1,62 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getRegrets, addRegret } from "@/lib/storage";
 
+// ── Profanity filter ────────────────────────────────────────────────
+const PROFANITY_LIST = [
+  /\b(fuck|shit|bitch|asshole|bastard|damn|crap|dick|piss)\b/gi,
+];
+
+function cleanText(text: string): string {
+  let cleaned = text.trim();
+  for (const pattern of PROFANITY_LIST) {
+    cleaned = cleaned.replace(pattern, (match) => "*".repeat(match.length));
+  }
+  return cleaned;
+}
+
+// ── POST ─────────────────────────────────────────────────────────────
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json().catch(() => ({}));
+    const body = await request.json();
     const { text, category } = body;
 
-    // Test /tmp write
-    const fs = await import("fs/promises");
-    const dbPath = "/tmp/regrets.json";
+    if (!text || typeof text !== "string") {
+      return NextResponse.json({ error: "Text is required" }, { status: 400 });
+    }
 
-    // Read existing
-    let regrets: unknown[] = [];
-    try {
-      const data = await fs.readFile(dbPath, "utf-8");
-      regrets = JSON.parse(data);
-    } catch {}
+    const cleaned = cleanText(text);
+    if (cleaned.length < 3) {
+      return NextResponse.json(
+        { error: "Text must be at least 3 characters" },
+        { status: 400 },
+      );
+    }
 
-    const record = {
-      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
-      text: String(text || ""),
-      category: String(category || "other"),
-      timestamp: new Date().toISOString(),
-    };
-    regrets.unshift(record);
-    await fs.writeFile(dbPath, JSON.stringify(regrets, null, 2));
+    const record = await addRegret(
+      cleaned,
+      typeof category === "string" ? category.toLowerCase() : "other",
+    );
 
-    return NextResponse.json({ success: true, record, regrets_count: regrets.length }, { status: 201 });
+    return NextResponse.json({ success: true, record }, { status: 201 });
   } catch (error) {
-    return NextResponse.json({
-      error: String(error),
-      stack: error instanceof Error ? error.stack?.split("\n").slice(0, 3).join("\n") : "",
-    }, { status: 500 });
+    console.error("POST /api/regrets error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }
 
+// ── GET ──────────────────────────────────────────────────────────────
 export async function GET() {
   try {
-    const fs = await import("fs/promises");
-    const dbPath = "/tmp/regrets.json";
-    try {
-      const data = await fs.readFile(dbPath, "utf-8");
-      return NextResponse.json(JSON.parse(data));
-    } catch {
-      return NextResponse.json([]);
-    }
+    const regrets = await getRegrets();
+    return NextResponse.json(regrets);
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    console.error("GET /api/regrets error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }

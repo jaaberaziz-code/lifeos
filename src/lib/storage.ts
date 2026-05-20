@@ -1,15 +1,14 @@
 /**
  * Storage service for LifeOS
  *
- * Strategy:
- * 1. Vercel KV (Upstash REST API) - in production when env vars are set
- * 2. JSON file fallback - in development
- *
- * No external packages needed — uses plain fetch() for KV.
+ * Layers (first available wins):
+ * 1. Vercel KV (Upstash REST API) — when env vars are set from Vercel dashboard
+ * 2. /tmp/regrets.json — writable on Vercel serverless
+ * 3. src/data/regrets.json — local development fallback
  */
 
 export interface RegretRecord {
-  id?: string;
+  id: string;
   text: string;
   category: string;
   timestamp: string;
@@ -17,9 +16,22 @@ export interface RegretRecord {
 
 const KV_KEY = "lifeos_regrets";
 
-// ── KV helpers ──────────────────────────────────────────────────────
+// ── Helpers ─────────────────────────────────────────────────────────
 
-function getKvConfig() {
+function generateId(): string {
+  return (
+    Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
+  );
+}
+
+function getDbPath(): string {
+  if (process.env.VERCEL) return "/tmp/regrets.json";
+  return process.cwd() + "/src/data/regrets.json";
+}
+
+// ── KV Layer (Upstash REST API) ────────────────────────────────────
+
+function getKvConfig(): { url: string; token: string } | null {
   const url =
     process.env.KV_REST_API_URL ||
     process.env.UPSTASH_REDIS_REST_URL ||
@@ -35,23 +47,18 @@ async function kvGet<T>(key: string): Promise<T | null> {
   const cfg = getKvConfig();
   if (!cfg) return null;
 
-  const res = await fetch(`${cfg.url}/get/${key}`, {
-    headers: { Authorization: `Bearer ${cfg.token}` },
-  });
-
-  if (!res.ok) {
-    console.error(`KV GET error: ${res.status} ${res.statusText}`);
-    return null;
-  }
-
-  const data = await res.json();
-  // Upstash returns { result: "..." } with the value as a JSON string
-  if (data.result === null || data.result === undefined) return null;
-
   try {
-    return JSON.parse(data.result) as T;
+    const res = await fetch(`${cfg.url}/get/${key}`, {
+      headers: { Authorization: `Bearer ${cfg.token}` },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.result === null || data.result === undefined) return null;
+    return typeof data.result === "string"
+      ? JSON.parse(data.result)
+      : data.result;
   } catch {
-    return data.result as T;
+    return null;
   }
 }
 
@@ -59,62 +66,52 @@ async function kvSet(key: string, value: unknown): Promise<boolean> {
   const cfg = getKvConfig();
   if (!cfg) return false;
 
-  // Upstash REST API expects the raw JSON value as the body
-  const res = await fetch(`${cfg.url}/set/${key}`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${cfg.token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(value),
-  });
-
-  return res.ok;
-}
-
-function generateId(): string {
-  return (
-    Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
-  );
-}
-
-// ── File fallback ───────────────────────────────────────────────────
-
-async function readFileFallback(): Promise<RegretRecord[]> {
-  const dbPath = process.env.VERCEL
-    ? "/tmp/regrets.json"
-    : process.cwd() + "/src/data/regrets.json";
   try {
-    const fs = await import("fs/promises");
-    const data = await fs.readFile(dbPath, "utf-8");
+    const res = await fetch(`${cfg.url}/set/${key}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${cfg.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(value),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+// ── File Layer ─────────────────────────────────────────────────────
+
+async function readFile(): Promise<RegretRecord[]> {
+  const fs = await import("fs/promises");
+  try {
+    const data = await fs.readFile(getDbPath(), "utf-8");
     return JSON.parse(data);
   } catch {
     return [];
   }
 }
 
-async function writeFileFallback(regrets: RegretRecord[]): Promise<void> {
-  const dbPath = process.env.VERCEL
-    ? "/tmp/regrets.json"
-    : process.cwd() + "/src/data/regrets.json";
+async function writeFile(regrets: RegretRecord[]): Promise<void> {
   const fs = await import("fs/promises");
   const path = await import("path");
+  const dbPath = getDbPath();
   await fs.mkdir(path.dirname(dbPath), { recursive: true });
   await fs.writeFile(dbPath, JSON.stringify(regrets, null, 2));
 }
 
-// ── Public API ──────────────────────────────────────────────────────
+// ── Public API ─────────────────────────────────────────────────────
 
 export async function getRegrets(): Promise<RegretRecord[]> {
-  // Try KV first
+  // 1. KV
   const kv = getKvConfig();
   if (kv) {
     const data = await kvGet<RegretRecord[]>(KV_KEY);
     if (data) return data;
   }
-
-  // Fallback to file
-  return readFileFallback();
+  // 2. File (Vercel /tmp or local)
+  return readFile();
 }
 
 export async function addRegret(
@@ -128,7 +125,6 @@ export async function addRegret(
     timestamp: new Date().toISOString(),
   };
 
-  // Try KV
   const kv = getKvConfig();
   if (kv) {
     const existing = (await kvGet<RegretRecord[]>(KV_KEY)) || [];
@@ -137,9 +133,9 @@ export async function addRegret(
     return record;
   }
 
-  // Fallback to file
-  const existing = await readFileFallback();
+  // File fallback
+  const existing = await readFile();
   existing.unshift(record);
-  await writeFileFallback(existing);
+  await writeFile(existing);
   return record;
 }
