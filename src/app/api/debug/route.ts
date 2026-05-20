@@ -1,2 +1,5 @@
-// This file is intentionally left blank — debug endpoint removed.
-// Kept to prevent 404 for anyone who cached the URL.
+import { NextResponse } from "next/server";
+
+export async function GET() {
+  return NextResponse.json({ status: "ok", message: "debug endpoint removed" });
+}
