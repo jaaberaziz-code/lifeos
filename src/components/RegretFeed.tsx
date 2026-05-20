@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import RegretCard from "./RegretCard";
 import RegretForm from "./RegretForm";
-import type { RegretRecord } from "@/lib/superpowers";
+import type { RegretRecord } from "@/lib/storage";
 
 export default function RegretFeed() {
   const [regrets, setRegrets] = useState<RegretRecord[]>([]);

@@ -1,6 +1,6 @@
 "use client";
 
-import type { RegretRecord } from "@/lib/superpowers";
+import type { RegretRecord } from "@/lib/storage";
 
 const CATEGORY_COLORS: Record<string, string> = {
   love:        "bg-rose-500/10 text-rose-400 border-rose-500/20",
