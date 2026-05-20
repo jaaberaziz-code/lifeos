@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { chatCompletion, getSystemPrompt, isAiEnabled, type ChatMessage } from "@/lib/openrouter";
+import { chatCompletion, getSystemPrompt, isAiEnabled } from "@/lib/openrouter";
+import type { ChatMessage } from "@/lib/openrouter";
 
 export async function POST(request: NextRequest) {
   if (!isAiEnabled()) {
