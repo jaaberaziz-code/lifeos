@@ -59,15 +59,14 @@ async function kvSet(key: string, value: unknown): Promise<boolean> {
   const cfg = getKvConfig();
   if (!cfg) return false;
 
-  const serialized = JSON.stringify(value);
-  // Use setnx (set if not exists) or just set
+  // Upstash REST API expects the raw JSON value as the body
   const res = await fetch(`${cfg.url}/set/${key}`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${cfg.token}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(serialized),
+    body: JSON.stringify(value),
   });
 
   return res.ok;
@@ -82,11 +81,12 @@ function generateId(): string {
 // ── File fallback ───────────────────────────────────────────────────
 
 async function readFileFallback(): Promise<RegretRecord[]> {
+  const dbPath = process.env.VERCEL
+    ? "/tmp/regrets.json"
+    : process.cwd() + "/src/data/regrets.json";
   try {
     const fs = await import("fs/promises");
-    const path = await import("path");
-    const filePath = path.join(process.cwd(), "src/data/regrets.json");
-    const data = await fs.readFile(filePath, "utf-8");
+    const data = await fs.readFile(dbPath, "utf-8");
     return JSON.parse(data);
   } catch {
     return [];
@@ -94,11 +94,13 @@ async function readFileFallback(): Promise<RegretRecord[]> {
 }
 
 async function writeFileFallback(regrets: RegretRecord[]): Promise<void> {
+  const dbPath = process.env.VERCEL
+    ? "/tmp/regrets.json"
+    : process.cwd() + "/src/data/regrets.json";
   const fs = await import("fs/promises");
   const path = await import("path");
-  const filePath = path.join(process.cwd(), "src/data/regrets.json");
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.writeFile(filePath, JSON.stringify(regrets, null, 2));
+  await fs.mkdir(path.dirname(dbPath), { recursive: true });
+  await fs.writeFile(dbPath, JSON.stringify(regrets, null, 2));
 }
 
 // ── Public API ──────────────────────────────────────────────────────
