@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { chatCompletion, getSystemPrompt, isAiEnabled } from "@/lib/openrouter";
+import { chatCompletion, getSystemPrompt, isAiEnabled, type ChatMessage } from "@/lib/openrouter";
 
 export async function POST(request: NextRequest) {
   if (!isAiEnabled()) {
@@ -17,10 +17,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Message is required" }, { status: 400 });
     }
 
-    const messages = [
+    const messages: ChatMessage[] = [
       getSystemPrompt(),
-      ...history.slice(-10), // keep last 10 for context
-      { role: "user" as const, content: message },
+      ...(history as ChatMessage[]).slice(-10),
+      { role: "user", content: message },
     ];
 
     const response = await chatCompletion(messages);

@@ -7,7 +7,7 @@
 
 const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
 
-interface ChatMessage {
+export interface ChatMessage {
   role: "system" | "user" | "assistant";
   content: string;
 }
