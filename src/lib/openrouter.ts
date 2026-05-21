@@ -32,7 +32,7 @@ export function isAiEnabled(): boolean {
 }
 
 export function getDefaultModel(): string {
-  return process.env.NEXT_PUBLIC_AI_MODEL || "openai/gpt-4o-mini";
+  return process.env.NEXT_PUBLIC_AI_MODEL || "google/gemini-2.0-flash-exp:free";
 }
 
 /**
